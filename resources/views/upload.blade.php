@@ -28,28 +28,34 @@
             </div>
         @endif
 
-        <form action="{{ route('upload.process') }}" method="POST" enctype="multipart/form-data" id="syncForm">
+        <form action="{{ route('upload.process') }}" method="POST" enctype="multipart/form-data" id="syncForm" class="space-y-4">
     @csrf
-    <div class="mb-4">
-        <input type="file" name="catalog_pdf" class="w-full p-2 border rounded" required>
+    <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+        <input type="file" name="catalog_pdf" class="hidden" id="fileInput" required>
+        <label for="fileInput" class="cursor-pointer text-blue-600 hover:underline">Choose PDF Catalog</label>
+        <p id="fileName" class="text-xs text-gray-500 mt-2">No file selected</p>
     </div>
 
-    <button type="submit" id="syncBtn" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">
+    <button type="submit" id="syncBtn" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow-md hover:bg-blue-700 transition">
         Sync Database
     </button>
 
-    <div id="statusBar" class="hidden mt-4">
-        <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-            <div class="bg-blue-600 h-full animate-pulse" style="width: 100%"></div>
+    <div id="statusBar" class="hidden">
+        <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+            <div class="bg-blue-600 h-2.5 rounded-full animate-pulse" style="width: 100%"></div>
         </div>
-        <p class="text-sm text-blue-600 mt-2 text-center font-semibold italic">Processing PDF... Please do not refresh.</p>
+        <p class="text-center text-sm text-blue-600 mt-2 font-medium">Syncing... Python is extracting PDF data.</p>
     </div>
 </form>
 
 <script>
+    document.getElementById('fileInput').onchange = function() {
+        document.getElementById('fileName').innerText = this.files[0].name;
+    };
+
     document.getElementById('syncForm').onsubmit = function() {
         document.getElementById('syncBtn').disabled = true;
-        document.getElementById('syncBtn').classList.add('opacity-50', 'cursor-not-allowed');
+        document.getElementById('syncBtn').classList.add('opacity-50');
         document.getElementById('statusBar').classList.remove('hidden');
     };
 </script>

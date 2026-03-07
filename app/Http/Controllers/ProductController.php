@@ -71,7 +71,8 @@ class ProductController extends Controller
          * inside your virtual environment's site-packages.
          */
         $pythonPath = "PYTHONPATH=/app/venv/lib/python3.11/site-packages";
-        $command = "$pythonPath python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($fullPath) . " 2>&1";
+       // Use the global python but point the library path to our venv
+        $command = "PYTHONPATH=/app/venv/lib/python3.11/site-packages python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($fullPath) . " 2>&1";
 
         $output = shell_exec($command);
 
