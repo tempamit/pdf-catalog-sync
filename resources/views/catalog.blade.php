@@ -12,8 +12,7 @@
     <div class="flex flex-col md:flex-row gap-6">
 
         <aside class="w-full md:w-1/4 bg-white p-6 rounded-xl shadow-md h-fit md:sticky top-4 border">
-
-            <h2 class="text-xl font-bold mb-4 border-b pb-2">Advanced Filters</h2>
+            <h2 class="text-xl font-bold mb-4 border-b pb-2">Search Catalog</h2>
             <form action="{{ route('catalog.index') }}" method="GET" class="space-y-4">
 
                 <div>
@@ -33,22 +32,12 @@
                 </div>
 
                 <div>
-                    <div class="flex justify-between items-center mb-2">
-                        <label class="block text-sm font-semibold text-gray-600">Categories</label>
-                        <label class="text-xs text-blue-600 font-bold cursor-pointer hover:underline">
-                            <input type="checkbox" id="selectAllCategories" class="mr-1">Select All
-                        </label>
-                    </div>
-                    <div class="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1 bg-gray-50">
-                        @foreach($categories as $cat)
-                        <label class="flex items-center space-x-2 text-sm cursor-pointer hover:bg-gray-100 p-1 rounded">
-                            <input type="checkbox" name="categories[]" value="{{ $cat }}"
-                                   {{ is_array(request('categories')) && in_array($cat, request('categories')) ? 'checked' : '' }}
-                                   class="cat-checkbox rounded border-gray-300 text-blue-600">
-                            <span>{{ $cat }}</span>
-                        </label>
-                        @endforeach
-                    </div>
+                    <label class="block text-sm font-semibold text-gray-600">Sort By</label>
+                    <select name="sort" class="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
+                        <option value="">Default (Category)</option>
+                        <option value="price_asc" {{ request('sort') == 'price_asc' ? 'selected' : '' }}>Price: Low to High</option>
+                        <option value="price_desc" {{ request('sort') == 'price_desc' ? 'selected' : '' }}>Price: High to Low</option>
+                    </select>
                 </div>
 
                 <div class="pt-4 flex gap-2">
@@ -94,9 +83,23 @@
         </aside>
 
         <main class="flex-1">
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="productGrid">
+
+            @if(count($categories) > 0)
+            <div class="mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <p class="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">Filter Categories in Current Search</p>
+                <div class="flex flex-wrap gap-2" id="categoryPills">
+                    @foreach($categories as $cat)
+                        <button type="button" class="category-pill bg-blue-600 text-white px-3 py-1.5 rounded-full text-xs font-semibold transition hover:bg-blue-700" data-category="{{ $cat }}" data-active="true">
+                            {{ $cat }}
+                        </button>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5" id="productGrid">
                 @forelse($products as $product)
-                <div class="product-card bg-white rounded-lg shadow border overflow-hidden flex flex-col relative transition" id="card-{{ $product->id }}">
+                <div class="product-card bg-white rounded-lg shadow border overflow-hidden flex flex-col relative transition" id="card-{{ $product->id }}" data-category="{{ $product->category_name }}">
 
                     <input type="checkbox" class="product-selector absolute top-2 left-2 z-10 w-5 h-5 cursor-pointer" data-id="{{ $product->id }}">
 
@@ -111,12 +114,19 @@
                     <div class="p-3 flex-1 flex flex-col">
                         <p class="text-[10px] text-gray-500 font-bold uppercase">{{ $product->category_name }} &bull; {{ $product->item_code }}</p>
                         <h3 class="font-bold text-sm text-gray-800 mt-1 line-clamp-2">{{ $product->item_name }}</h3>
+
                         <div class="mt-auto pt-3 flex items-center justify-between">
                             <span class="text-md font-black text-blue-700">Rs. {{ number_format($product->bulk_price) }}</span>
                             @if($product->detail_link && str_starts_with($product->detail_link, 'http'))
                                 <a href="{{ $product->detail_link }}" target="_blank" class="text-xs text-blue-500 hover:underline">View</a>
                             @endif
                         </div>
+
+                        @if($product->comments)
+                            <div class="mt-2 bg-yellow-100 border border-yellow-300 text-yellow-800 text-xs px-2 py-1.5 rounded shadow-sm font-semibold">
+                                {{ $product->comments }}
+                            </div>
+                        @endif
                     </div>
                 </div>
                 @empty
@@ -130,12 +140,6 @@
 </div>
 
 <script>
-    // 1. Toggle all categories
-    document.getElementById('selectAllCategories').addEventListener('change', function(e) {
-        document.querySelectorAll('.cat-checkbox').forEach(cb => cb.checked = e.target.checked);
-    });
-
-    // 2. Manage Product Selection Array for PDF Export
     const selectedProducts = new Set();
     const countDisplay = document.getElementById('exportCount');
     const hiddenInput = document.getElementById('selectedProductsInput');
@@ -145,7 +149,7 @@
         countDisplay.innerText = selectedProducts.size;
     }
 
-    // Listen to individual product checkboxes
+    // 1. Manage Product Checkboxes
     document.querySelectorAll('.product-selector').forEach(cb => {
         cb.addEventListener('change', function() {
             const card = document.getElementById('card-' + this.dataset.id);
@@ -160,19 +164,51 @@
         });
     });
 
-    // Helper to select all visible products at once
+    // 2. Horizontal Category Pill Logic (Frontend Filtering & Safety Uncheck)
+    document.querySelectorAll('.category-pill').forEach(pill => {
+        pill.addEventListener('click', function() {
+            const isActive = this.dataset.active === 'true';
+            const categoryToToggle = this.dataset.category;
+
+            // Toggle Button Styling
+            if (isActive) {
+                this.dataset.active = 'false';
+                this.classList.replace('bg-blue-600', 'bg-gray-200');
+                this.classList.replace('text-white', 'text-gray-500');
+                this.classList.remove('hover:bg-blue-700');
+            } else {
+                this.dataset.active = 'true';
+                this.classList.replace('bg-gray-200', 'bg-blue-600');
+                this.classList.replace('text-gray-500', 'text-white');
+                this.classList.add('hover:bg-blue-700');
+            }
+
+            // Show/Hide matching cards AND uncheck them if they are being hidden
+            document.querySelectorAll('.product-card').forEach(card => {
+                if (card.dataset.category === categoryToToggle) {
+                    if (isActive) { // We are turning it OFF
+                        card.classList.add('hidden');
+                        const checkbox = card.querySelector('.product-selector');
+                        if (checkbox.checked) {
+                            checkbox.checked = false;
+                            checkbox.dispatchEvent(new Event('change')); // Triggers updateExportForm automatically
+                        }
+                    } else { // We are turning it ON
+                        card.classList.remove('hidden');
+                    }
+                }
+            });
+        });
+    });
+
     function selectAllProducts() {
-        document.querySelectorAll('.product-selector').forEach(cb => {
+        document.querySelectorAll('.product-card:not(.hidden) .product-selector').forEach(cb => {
             if (!cb.checked) {
                 cb.checked = true;
-                // trigger change event to update arrays and styles
                 cb.dispatchEvent(new Event('change'));
             }
         });
     }
-// Helper to select all visible products at once// Helper to select all visible products at once
-
-
 </script>
 
 </body>
