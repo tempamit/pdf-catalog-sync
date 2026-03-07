@@ -20,14 +20,23 @@ class ProductController extends Controller
     }
 
     /**
-     * Mobile-First Search & Catalog View
+     * Desktop-First Advanced Search & Dashboard
      */
     public function index(Request $request)
     {
-        // Start with only active products
+        // 1. Get unique categories to populate the sidebar checkboxes
+        $categories = Product::where('is_active', true)
+            ->whereNotNull('category_name')
+            ->distinct()
+            ->pluck('category_name')
+            ->sort()
+            ->values()
+            ->toArray();
+
+        // 2. Start the query with active products
         $query = Product::where('is_active', true);
 
-        // 1. Search by Category, SKU, or Keyword
+        // Filter: Keyword (SKU or Name)
         if ($request->filled('keyword')) {
             $keyword = $request->keyword;
             $query->where(function($q) use ($keyword) {
@@ -37,15 +46,24 @@ class ProductController extends Controller
             });
         }
 
-        // 2. Filter by Max Price
+        // Filter: Multiple Categories (Array)
+        if ($request->filled('categories') && is_array($request->categories)) {
+            $query->whereIn('category_name', $request->categories);
+        }
+
+        // Filter: Inclusive Price Range
+        if ($request->filled('min_price')) {
+            $query->where('bulk_price', '>=', $request->min_price);
+        }
         if ($request->filled('max_price')) {
             $query->where('bulk_price', '<=', $request->max_price);
         }
 
-        // Paginate for mobile performance
+        // Paginate results for the dashboard
         $products = $query->orderBy('category_name')->paginate(15)->withQueryString();
 
-        return view('catalog', compact('products'));
+        // THE MAGIC LINE: Pass BOTH products and categories to the view!
+        return view('catalog', compact('products', 'categories'));
     }
 
     /**
