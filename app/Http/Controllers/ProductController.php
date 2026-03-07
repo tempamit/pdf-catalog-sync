@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
 
+
 class ProductController extends Controller
 {
     /**
@@ -123,40 +124,53 @@ class ProductController extends Controller
      * Generate and Download the Marked-up PDF
      */
     public function exportPdf(Request $request)
-    {
-        $query = Product::where('is_active', true);
+{
+    // 1. Start the query with only active products
+    $query = Product::where('is_active', 1);
 
-        // Apply same filters as the current search view
-        if ($request->filled('keyword')) {
-            $keyword = $request->keyword;
-            $query->where(function($q) use ($keyword) {
-                $q->where('item_code', 'like', "%{$keyword}%")
-                  ->orWhere('item_name', 'like', "%{$keyword}%")
-                  ->orWhere('category_name', 'like', "%{$keyword}%");
-            });
-        }
-
-        if ($request->filled('max_price')) {
-            $query->where('bulk_price', '<=', $request->max_price);
-        }
-
-        $products = $query->get();
-
-        $showPrice = $request->input('show_price', 'yes') === 'yes';
-        $markup = (float) $request->input('markup_percentage', 0);
-
-        // Apply markup logic
-        foreach ($products as $product) {
-            if ($showPrice && $product->bulk_price) {
-                $multiplier = 1 + ($markup / 100);
-                $product->custom_price = $product->bulk_price * $multiplier;
-            } else {
-                $product->custom_price = null;
-            }
-        }
-
-        $pdf = Pdf::loadView('pdf.catalog', compact('products', 'showPrice'));
-
-        return $pdf->download('IPDS_Catalog_Export.pdf');
+    // 2. Filter by Product Code (Exact match)
+    if ($request->filled('product_code')) {
+        // Adjust 'code' to your actual database column name if it's different
+        $query->where('code', $request->product_code);
     }
+
+    // 3. Filter by Keyword (Searches in name OR description)
+    if ($request->filled('keyword')) {
+        $keyword = $request->keyword;
+        $query->where(function($q) use ($keyword) {
+            // Using 'ilike' for case-insensitive search in PostgreSQL
+            $q->where('name', 'ilike', "%{$keyword}%")
+              ->orWhere('description', 'ilike', "%{$keyword}%");
+        });
+    }
+
+    // 4. Filter by Price Range (Inclusive: e.g., 100 to 300)
+    if ($request->filled('min_price') && $request->filled('max_price')) {
+        $query->whereBetween('price', [$request->min_price, $request->max_price]);
+    } elseif ($request->filled('min_price')) {
+        $query->where('price', '>=', $request->min_price);
+    } elseif ($request->filled('max_price')) {
+        $query->where('price', '<=', $request->max_price);
+    }
+
+    // 5. Filter by Multiple Categories (Only grabs products in selected categories)
+    if ($request->filled('categories') && is_array($request->categories)) {
+        // Adjust 'category_id' to your actual column name
+        $query->whereIn('category_id', $request->categories);
+    }
+
+    // 6. Execute the query to get the filtered products
+    $products = $query->get();
+
+    // 7. Handle any markup or custom pricing logic you previously had
+    $showPrice = $request->input('show_price', 'yes');
+    foreach ($products as $product) {
+        // Keeping your previous logic intact just in case
+        $product->custom_price = null;
+    }
+
+    // 8. Generate and download the PDF
+    $pdf = Pdf::loadView('pdf.catalog', compact('products', 'showPrice'));
+    return $pdf->download('IPDS_Catalog_Export.pdf');
+}
 }
