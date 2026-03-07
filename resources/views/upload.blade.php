@@ -28,25 +28,35 @@
             </div>
         @endif
 
-        <form action="{{ route('upload.process') }}" method="POST" enctype="multipart/form-data">
-            @csrf
-            <div class="mb-6">
-                <label class="block text-gray-700 text-sm font-bold mb-2" for="catalog_pdf">
-                    Upload Latest Master PDF (Exact format required)
-                </label>
-                <input type="file" name="catalog_pdf" id="catalog_pdf" accept=".pdf" required
-                    class="block w-full text-sm text-gray-500
-                           file:mr-4 file:py-2 file:px-4
-                           file:rounded-md file:border-0
-                           file:text-sm file:font-semibold
-                           file:bg-blue-50 file:text-blue-700
-                           hover:file:bg-blue-100 border border-gray-300 rounded p-2">
-            </div>
+        <form action="{{ route('upload.process') }}" method="POST" enctype="multipart/form-data" id="uploadForm" class="space-y-6">
+    @csrf
+    <div>
+        <input type="file" name="catalog_pdf" required
+            class="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-500 transition">
+    </div>
 
-            <div class="flex items-center justify-between mt-8">
-                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded focus:outline-none focus:shadow-outline transition duration-150">
-                    Sync Database
-                </button>
+    <div id="buttonContainer">
+        <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow-lg hover:bg-blue-700 transition">
+            Sync Database
+        </button>
+    </div>
+
+    <div id="loadingIndicator" class="hidden text-center space-y-4">
+        <div class="flex items-center justify-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+        <p class="text-blue-600 font-bold animate-pulse">Syncing Database... Please wait.</p>
+        <p class="text-xs text-gray-400">Python is currently extracting tables and updating PostgreSQL.</p>
+    </div>
+</form>
+
+<script>
+    document.getElementById('uploadForm').onsubmit = function() {
+        // Hide the button and show the status bar
+        document.getElementById('buttonContainer').classList.add('hidden');
+        document.getElementById('loadingIndicator').classList.remove('hidden');
+    };
+</script>
                 <a href="/" class="text-sm text-blue-600 hover:underline">Go to Mobile Catalog</a>
             </div>
         </form>
