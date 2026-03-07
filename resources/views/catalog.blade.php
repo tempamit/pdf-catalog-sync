@@ -1,179 +1,124 @@
-<?php
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPDS Product Catalog</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800">
 
-namespace App\Http\Controllers;
+<div class="container mx-auto px-4 py-8">
+    <div class="flex flex-col md:flex-row gap-6">
 
-use Illuminate\Http\Request;
-use App\Models\Product;
-use Illuminate\Support\Facades\Storage;
-use Barryvdh\DomPDF\Facade\Pdf;
+        <aside class="w-full md:w-1/4 bg-white p-6 rounded-xl shadow-md h-fit md:sticky top-4 border">
+            <h2 class="text-xl font-bold mb-4 border-b pb-2">Advanced Filters</h2>
+            <form action="{{ route('catalog.index') }}" method="GET" class="space-y-4">
 
-class ProductController extends Controller
-{
-    /**
-     * Show the Upload Form
-     */
-    public function showUploadForm()
-    {
-        return view('upload');
-    }
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600">Keyword / SKU</label>
+                    <input type="text" name="keyword" value="{{ request('keyword') }}" placeholder="Enter code or name..."
+                           class="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+                </div>
 
-    /**
-     * Desktop-First Advanced Search & Dashboard
-     */
-    public function index(Request $request)
-    {
-        // 1. Get unique categories to populate the sidebar checkboxes
-        $categories = Product::where('is_active', true)
-            ->whereNotNull('category_name')
-            ->distinct()
-            ->pluck('category_name')
-            ->sort()
-            ->values()
-            ->toArray();
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600">Price Range (Rs.)</label>
+                    <div class="flex gap-2 mt-1">
+                        <input type="number" name="min_price" value="{{ request('min_price') }}" placeholder="Min"
+                               class="w-1/2 border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                        <input type="number" name="max_price" value="{{ request('max_price') }}" placeholder="Max"
+                               class="w-1/2 border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    </div>
+                </div>
 
-        // 2. Start the query with active products
-        $query = Product::where('is_active', true);
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-2">Categories</label>
+                    <div class="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1 bg-gray-50">
+                        @foreach($categories as $cat)
+                        <label class="flex items-center space-x-2 text-sm cursor-pointer hover:bg-gray-100 p-1 rounded">
+                            <input type="checkbox" name="categories[]" value="{{ $cat }}"
+                                   {{ is_array(request('categories')) && in_array($cat, request('categories')) ? 'checked' : '' }}
+                                   class="rounded border-gray-300 text-blue-600">
+                            <span>{{ $cat }}</span>
+                        </label>
+                        @endforeach
+                    </div>
+                </div>
 
-        // Filter: Keyword (SKU or Name)
-        if ($request->filled('keyword')) {
-            $keyword = $request->keyword;
-            $query->where(function($q) use ($keyword) {
-                $q->where('item_code', 'like', "%{$keyword}%")
-                  ->orWhere('item_name', 'like', "%{$keyword}%");
-            });
-        }
+                <div class="pt-4 flex gap-2">
+                    <button type="submit" class="flex-1 bg-gray-800 text-white font-bold py-2 rounded-lg hover:bg-black transition">Search</button>
+                    <a href="{{ route('catalog.index') }}" class="px-4 py-2 bg-gray-200 rounded-lg text-gray-600 hover:bg-gray-300 text-center font-bold">Clear</a>
+                </div>
+            </form>
 
-        // Filter: Multiple Categories (Array)
-        if ($request->filled('categories') && is_array($request->categories)) {
-            $query->whereIn('category_name', $request->categories);
-        }
+            <div class="mt-8 pt-6 border-t border-gray-200">
+                <h3 class="text-sm font-bold text-red-600 mb-3 uppercase">Export Current List</h3>
+                <form action="{{ route('catalog.export') }}" method="POST" target="_blank" class="space-y-3">
+                    @csrf
+                    <input type="hidden" name="keyword" value="{{ request('keyword') }}">
+                    <input type="hidden" name="min_price" value="{{ request('min_price') }}">
+                    <input type="hidden" name="max_price" value="{{ request('max_price') }}">
+                    @if(is_array(request('categories')))
+                        @foreach(request('categories') as $cat)
+                            <input type="hidden" name="categories[]" value="{{ $cat }}">
+                        @endforeach
+                    @endif
 
-        // Filter: Inclusive Price Range
-        if ($request->filled('min_price')) {
-            $query->where('bulk_price', '>=', $request->min_price);
-        }
-        if ($request->filled('max_price')) {
-            $query->where('bulk_price', '<=', $request->max_price);
-        }
+                    <div class="flex items-center justify-between gap-2">
+                        <label class="text-sm font-semibold text-gray-600">Show Prices?</label>
+                        <select name="show_price" class="border border-gray-300 rounded px-2 py-1 text-sm">
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                        </select>
+                    </div>
 
-        // Paginate results for the dashboard
-        $products = $query->orderBy('category_name')->paginate(15)->withQueryString();
+                    <div class="flex items-center justify-between gap-2">
+                        <label class="text-sm font-semibold text-gray-600">Markup %</label>
+                        <input type="number" name="markup_percentage" value="0" min="0" class="border border-gray-300 rounded px-2 py-1 text-sm w-20 text-center">
+                    </div>
 
-        return view('catalog', compact('products', 'categories'));
-    }
+                    <button type="submit" class="w-full bg-red-600 text-white font-bold py-2 rounded-lg hover:bg-red-700 transition">
+                        Download PDF
+                    </button>
+                </form>
+            </div>
+        </aside>
 
-    /**
-     * Handle the uploaded PDF and Sync the Database via Python
-     */
-    public function processUpload(Request $request)
-    {
-        // Validate the file (up to 50MB)
-        $request->validate([
-            'catalog_pdf' => 'required|mimes:pdf|max:51200',
-        ]);
+        <main class="flex-1">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                @forelse($products as $product)
+                <div class="bg-white rounded-lg shadow border overflow-hidden flex flex-col">
+                    <div class="relative h-48 bg-white border-b flex items-center justify-center p-2">
+                        @if($product->image_link)
+                            <img src="{{ $product->image_link }}" alt="{{ $product->item_name }}" class="max-w-full max-h-full object-contain">
+                        @else
+                            <div class="text-gray-300 text-xs italic bg-gray-50 w-full h-full flex items-center justify-center rounded">Image Placeholder</div>
+                        @endif
+                    </div>
+                    <div class="p-3 flex-1 flex flex-col">
+                        <p class="text-[10px] text-gray-500 font-bold uppercase">{{ $product->category_name }} &bull; {{ $product->item_code }}</p>
+                        <h3 class="font-bold text-sm text-gray-800 mt-1 line-clamp-2">{{ $product->item_name }}</h3>
+                        <div class="mt-auto pt-3 flex items-center justify-between">
+                            <span class="text-md font-black text-blue-700">Rs. {{ number_format($product->bulk_price) }}</span>
+                            @if($product->detail_link)
+                                <a href="{{ $product->detail_link }}" target="_blank" class="text-xs text-blue-500 hover:underline">View</a>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+                @empty
+                <div class="col-span-full py-20 text-center text-gray-500 font-bold text-lg">
+                    No products found matching your criteria.
+                </div>
+                @endforelse
+            </div>
 
-        // Store the file on the local disk to guarantee a predictable path
-        $filePath = $request->file('catalog_pdf')->storeAs('uploads', 'latest_catalog.pdf', 'local');
-        $fullPath = Storage::disk('local')->path($filePath);
+            <div class="mt-6">
+                {{ $products->links() }}
+            </div>
+        </main>
+    </div>
+</div>
 
-        // Path to your Python script
-        $scriptPath = base_path('pdf_extractor/extract.py');
-
-        // Execute Python using PYTHONPATH to bypass strict directory permissions
-        $pythonPath = "PYTHONPATH=/app/venv/lib/python3.11/site-packages";
-        $command = "$pythonPath python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($fullPath) . " 2>&1";
-
-        $output = shell_exec($command);
-        $data = json_decode($output, true);
-
-        // Validation & Raw Error Capture
-        if (!$data || isset($data['error'])) {
-            $errorDetail = $data['error'] ?? "Python Error: " . ($output ?: 'No response.');
-            return back()->withErrors(['catalog_pdf' => "Sync Failed: " . $errorDetail]);
-        }
-
-        $incomingSkus = [];
-
-        // Insert New & Update Existing
-        foreach ($data as $item) {
-            if (empty($item['item_code'])) continue;
-
-            $incomingSkus[] = $item['item_code'];
-
-            Product::updateOrCreate(
-                ['item_code' => $item['item_code']],
-                [
-                    'category_name'    => $item['category_name'],
-                    'item_name'        => $item['item_name'],
-                    'colors_available' => $item['colors_available'],
-                    'image_link'       => $item['image_link'],
-                    'detail_link'      => $item['detail_link'],
-                    'sample_price'     => $item['sample_price'],
-                    'bulk_price'       => $item['bulk_price'],
-                    'comments'         => $item['comments'],
-                    'is_active'        => true,
-                ]
-            );
-        }
-
-        // Smart Archiving: Hide products that were removed from the master PDF
-        if (count($incomingSkus) > 0) {
-            Product::whereNotIn('item_code', $incomingSkus)->update(['is_active' => false]);
-        }
-
-        return back()->with('success', 'Database synced successfully! Processed ' . count($incomingSkus) . ' active items.');
-    }
-
-    /**
-     * Generate and Download the Custom PDF Catalog
-     */
-    public function exportPdf(Request $request)
-    {
-        $query = Product::where('is_active', true);
-
-        // Mirror the exact same filters from the Advanced Search
-        if ($request->filled('keyword')) {
-            $keyword = $request->keyword;
-            $query->where(function($q) use ($keyword) {
-                $q->where('item_code', 'like', "%{$keyword}%")
-                  ->orWhere('item_name', 'like', "%{$keyword}%");
-            });
-        }
-
-        if ($request->filled('categories') && is_array($request->categories)) {
-            $query->whereIn('category_name', $request->categories);
-        }
-
-        if ($request->filled('min_price')) {
-            $query->where('bulk_price', '>=', $request->min_price);
-        }
-        if ($request->filled('max_price')) {
-            $query->where('bulk_price', '<=', $request->max_price);
-        }
-
-        // Get ALL matching products for the export (no pagination)
-        $products = $query->orderBy('category_name')->get();
-
-        // Check if the user wants prices shown and grab the markup percentage
-        $showPrice = $request->input('show_price', 'yes') === 'yes';
-        $markupPercentage = (float) $request->input('markup_percentage', 0);
-
-        // Apply dynamic pricing logic
-        foreach ($products as $product) {
-            if ($showPrice && $product->bulk_price) {
-                $multiplier = 1 + ($markupPercentage / 100);
-                $product->custom_price = $product->bulk_price * $multiplier;
-            } else {
-                $product->custom_price = null;
-            }
-        }
-
-        // Load the view from resources/views/pdf/catalog.blade.php
-        $pdf = Pdf::loadView('pdf.catalog', compact('products', 'showPrice'));
-
-        // Optimize paper size for catalog printing
-        $pdf->setPaper('A4', 'portrait');
-
-        return $pdf->download('IPDS_Custom_Catalog.pdf');
-    }
-}
+</body>
+</html>
