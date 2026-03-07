@@ -57,9 +57,11 @@ class ProductController extends Controller
             'catalog_pdf' => 'required|mimes:pdf|max:20480', // Max 20MB
         ]);
 
-        // Save the file temporarily
-        $filePath = $request->file('catalog_pdf')->storeAs('uploads', 'latest_catalog.pdf');
-        $fullPath = storage_path('app/' . $filePath);
+       // Store it in the 'public' disk so it's guaranteed to be in a predictable path
+       $filePath = $request->file('catalog_pdf')->storeAs('uploads', 'latest_catalog.pdf', 'local');
+
+       // Use the Storage facade to get the absolute path regardless of folder nesting
+       $fullPath = Storage::disk('local')->path($filePath);
 
         // Path to your Python script
         $scriptPath = base_path('pdf_extractor/extract.py');
