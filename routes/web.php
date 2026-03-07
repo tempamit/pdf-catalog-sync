@@ -7,13 +7,8 @@ use App\Http\Controllers\ProductController;
 Route::get('/upload', [ProductController::class, 'showUploadForm'])->name('upload.form');
 Route::post('/upload', [ProductController::class, 'processUpload'])->name('upload.process');
 
-// Mobile-First Search & Download Route (Placeholder for later)
-Route::get('/', function () {
-    return view('catalog'); // We will build this mobile UI later
-
-    // Mobile Search Route
+// Mobile Search Route (This is what was missing!)
 Route::get('/', [ProductController::class, 'index'])->name('catalog.index');
 
-// PDF Export Route (We will build the logic for this next)
+// PDF Export Route
 Route::post('/export-pdf', [ProductController::class, 'exportPdf'])->name('catalog.export');
-});

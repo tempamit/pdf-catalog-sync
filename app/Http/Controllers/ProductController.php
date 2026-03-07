@@ -59,7 +59,7 @@ class ProductController extends Controller
         $scriptPath = base_path('pdf_extractor/extract.py');
 
         // Safely construct the command and capture ALL system errors (2>&1)
-        $command = "/opt/venv/bin/python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($fullPath) . " 2>&1";
+        $command = "/app/venv/bin/python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($fullPath) . " 2>&1";
         $output = shell_exec($command);
 
         // Decode the JSON string returned from Python
