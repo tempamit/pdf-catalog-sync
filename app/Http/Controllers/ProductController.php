@@ -188,7 +188,8 @@ class ProductController extends Controller
     }
 
     // 8. Generate and download the PDF
-    $pdf = Pdf::loadView('pdf.catalog', compact('products', 'showPrice'));
+    // Give DOMPDF permission to download external images
+    $pdf = Pdf::setOptions(['isRemoteEnabled' => true])->loadView('pdf.catalog', compact('products', 'showPrice'));
     return $pdf->download('IPDS_Catalog_Export.pdf');
 }
 }
