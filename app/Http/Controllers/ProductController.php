@@ -15,6 +15,34 @@ class ProductController extends Controller
         return view('upload');
     }
 
+    // Mobile-First Search & Catalog View
+    public function index(Request $request)
+    {
+        // Start with only active products
+        $query = Product::where('is_active', true);
+
+        // 1. Search by Category, SKU, or Keyword
+        if ($request->filled('keyword')) {
+            $keyword = $request->keyword;
+            $query->where(function($q) use ($keyword) {
+                $q->where('item_code', 'like', "%{$keyword}%")
+                  ->orWhere('item_name', 'like', "%{$keyword}%")
+                  ->orWhere('category_name', 'like', "%{$keyword}%");
+            });
+        }
+
+        // 2. Filter by Max Price (using the Bulk Price as the baseline)
+        if ($request->filled('max_price')) {
+            $query->where('bulk_price', '<=', $request->max_price);
+        }
+
+        // Paginate so your phone doesn't crash loading 1000 items at once
+        $products = $query->paginate(15)->withQueryString();
+
+        return view('catalog', compact('products'));
+    }
+
+
     // Handle the uploaded PDF and Sync the Database
     public function processUpload(Request $request)
     {

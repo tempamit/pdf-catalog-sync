@@ -10,4 +10,10 @@ Route::post('/upload', [ProductController::class, 'processUpload'])->name('uploa
 // Mobile-First Search & Download Route (Placeholder for later)
 Route::get('/', function () {
     return view('catalog'); // We will build this mobile UI later
+
+    // Mobile Search Route
+Route::get('/', [ProductController::class, 'index'])->name('catalog.index');
+
+// PDF Export Route (We will build the logic for this next)
+Route::post('/export-pdf', [ProductController::class, 'exportPdf'])->name('catalog.export');
 });
