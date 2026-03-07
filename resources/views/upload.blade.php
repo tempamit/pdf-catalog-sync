@@ -28,33 +28,29 @@
             </div>
         @endif
 
-        <form action="{{ route('upload.process') }}" method="POST" enctype="multipart/form-data" id="uploadForm" class="space-y-6">
+        <form action="{{ route('upload.process') }}" method="POST" enctype="multipart/form-data" id="syncForm">
     @csrf
-    <div>
-        <input type="file" name="catalog_pdf" required
-            class="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-500 transition">
+    <div class="mb-4">
+        <input type="file" name="catalog_pdf" class="w-full p-2 border rounded" required>
     </div>
 
-    <div id="buttonContainer">
-        <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow-lg hover:bg-blue-700 transition">
-            Sync Database
-        </button>
-    </div>
+    <button type="submit" id="syncBtn" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">
+        Sync Database
+    </button>
 
-    <div id="loadingIndicator" class="hidden text-center space-y-4">
-        <div class="flex items-center justify-center">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    <div id="statusBar" class="hidden mt-4">
+        <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+            <div class="bg-blue-600 h-full animate-pulse" style="width: 100%"></div>
         </div>
-        <p class="text-blue-600 font-bold animate-pulse">Syncing Database... Please wait.</p>
-        <p class="text-xs text-gray-400">Python is currently extracting tables and updating PostgreSQL.</p>
+        <p class="text-sm text-blue-600 mt-2 text-center font-semibold italic">Processing PDF... Please do not refresh.</p>
     </div>
 </form>
 
 <script>
-    document.getElementById('uploadForm').onsubmit = function() {
-        // Hide the button and show the status bar
-        document.getElementById('buttonContainer').classList.add('hidden');
-        document.getElementById('loadingIndicator').classList.remove('hidden');
+    document.getElementById('syncForm').onsubmit = function() {
+        document.getElementById('syncBtn').disabled = true;
+        document.getElementById('syncBtn').classList.add('opacity-50', 'cursor-not-allowed');
+        document.getElementById('statusBar').classList.remove('hidden');
     };
 </script>
                 <a href="/" class="text-sm text-blue-600 hover:underline">Go to Mobile Catalog</a>

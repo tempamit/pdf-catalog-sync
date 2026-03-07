@@ -2,8 +2,12 @@
 nixPkgs = ['...', 'python311', 'gcc']
 
 [phases.install]
-cmds = ['...', 'python3 -m venv /app/venv', '. /app/venv/bin/activate && pip install -r requirements.txt', 'chmod -R 755 /app/venv']
-
+cmds = [
+    '...',
+    'python3 -m venv /app/venv',
+    '. /app/venv/bin/activate && pip install -r requirements.txt',
+    'chmod -R 755 /app' # This ensures the web user can read everything in /app
+]
 # ADD THIS: This ensures permissions are correct after the build finishes
 [phases.postinstall]
 cmds = ['chmod -R 755 /app/venv', 'chown -R www-data:www-data /app/venv || true']
