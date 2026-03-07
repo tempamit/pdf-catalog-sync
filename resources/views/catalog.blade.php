@@ -1,102 +1,179 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Catalog Search</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-50 text-gray-800 font-sans antialiased">
+<?php
 
-    <div class="max-w-md mx-auto bg-white min-h-screen shadow-md relative pb-24 text-center">
+namespace App\Http\Controllers;
 
-        <header class="bg-blue-600 text-white p-4 sticky top-0 z-10">
-            <h1 class="text-xl font-bold">Product Catalog</h1>
-        </header>
+use Illuminate\Http\Request;
+use App\Models\Product;
+use Illuminate\Support\Facades\Storage;
+use Barryvdh\DomPDF\Facade\Pdf;
 
-        <div class="p-4 border-b">
-            <form action="{{ route('catalog.index') }}" method="GET" class="space-y-3">
-                <input type="text" name="keyword" value="{{ request('keyword') }}" placeholder="Search SKU, Name, or Category..."
-                    class="w-full border rounded-full px-4 py-2 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+class ProductController extends Controller
+{
+    /**
+     * Show the Upload Form
+     */
+    public function showUploadForm()
+    {
+        return view('upload');
+    }
 
-                <input type="number" name="max_price" value="{{ request('max_price') }}" placeholder="Max Bulk Price (Rs)"
-                    class="w-full border rounded-full px-4 py-2 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+    /**
+     * Desktop-First Advanced Search & Dashboard
+     */
+    public function index(Request $request)
+    {
+        // 1. Get unique categories to populate the sidebar checkboxes
+        $categories = Product::where('is_active', true)
+            ->whereNotNull('category_name')
+            ->distinct()
+            ->pluck('category_name')
+            ->sort()
+            ->values()
+            ->toArray();
 
-                <button type="submit" class="w-full bg-gray-800 text-white font-bold py-2 rounded-full hover:bg-gray-900 transition">
-                    Search Products
-                </button>
-            </form>
-        </div>
+        // 2. Start the query with active products
+        $query = Product::where('is_active', true);
 
-        <div class="p-4 space-y-4">
-            @forelse($products as $product)
-                <div class="border rounded-xl p-4 shadow-sm flex flex-col items-center">
-                    <div class="w-24 h-24 bg-gray-200 rounded-md mb-3 flex items-center justify-center text-xs text-gray-500">
-                        Image: {{ $product->item_code }}
-                    </div>
-                    <span class="text-xs font-semibold text-blue-600 mb-1">{{ $product->category_name }}</span>
-                    <h2 class="font-bold text-lg leading-tight mb-1">{{ $product->item_name }}</h2>
-                    <p class="text-sm text-gray-500 mb-2">Code: <span class="font-bold text-gray-700">{{ $product->item_code }}</span></p>
-                    <p class="font-bold text-green-600 text-lg">Rs. {{ number_format($product->bulk_price, 2) }}</p>
-                </div>
-            @empty
-                <p class="text-gray-500 py-10">No products found.</p>
-            @endforelse
-
-            <div class="mt-4">
-                {{ $products->links() }} </div>
-        </div>
-
-        <div class="fixed bottom-0 left-0 right-0 p-4 max-w-md mx-auto bg-white border-t">
-            <button onclick="openExportModal()" class="w-full bg-red-600 text-white font-bold py-3 rounded-full shadow-lg hover:bg-red-700 transition">
-                Export Current List to PDF
-            </button>
-        </div>
-
-    </div>
-
-    <div id="exportModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center px-4">
-        <div class="bg-white rounded-2xl p-6 w-full max-w-sm text-center">
-            <h3 class="text-xl font-bold mb-4">Export PDF Settings</h3>
-
-            <form action="{{ route('catalog.export') }}" method="POST">
-                @csrf
-                <input type="hidden" name="keyword" value="{{ request('keyword') }}">
-                <input type="hidden" name="max_price" value="{{ request('max_price') }}">
-
-                <div class="mb-4">
-                    <label class="block font-semibold mb-2 text-gray-700">Display Prices?</label>
-                    <select id="priceToggle" name="show_price" onchange="toggleMarkup()" class="w-full border rounded-lg px-4 py-2 text-center text-lg">
-                        <option value="yes">Export WITH Price</option>
-                        <option value="no">Export WITHOUT Price</option>
-                    </select>
-                </div>
-
-                <div id="markupSection" class="mb-6">
-                    <label class="block font-semibold mb-2 text-gray-700">Price Markup (%)</label>
-                    <p class="text-xs text-gray-500 mb-2">Increase base bulk price by 0% to 500%</p>
-                    <input type="range" name="markup_percentage" id="markupRange" min="0" max="500" value="0"
-                        oninput="document.getElementById('markupValue').innerText = this.value + '%'"
-                        class="w-full mb-2">
-                    <div class="text-2xl font-bold text-blue-600" id="markupValue">0%</div>
-                </div>
-
-                <div class="flex gap-3">
-                    <button type="button" onclick="closeExportModal()" class="w-1/2 bg-gray-200 text-gray-800 font-bold py-2 rounded-lg">Cancel</button>
-                    <button type="submit" class="w-1/2 bg-blue-600 text-white font-bold py-2 rounded-lg shadow-md">Generate</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <script>
-        function openExportModal() { document.getElementById('exportModal').classList.remove('hidden'); }
-        function closeExportModal() { document.getElementById('exportModal').classList.add('hidden'); }
-        function toggleMarkup() {
-            const toggle = document.getElementById('priceToggle').value;
-            const markupSection = document.getElementById('markupSection');
-            markupSection.style.display = (toggle === 'yes') ? 'block' : 'none';
+        // Filter: Keyword (SKU or Name)
+        if ($request->filled('keyword')) {
+            $keyword = $request->keyword;
+            $query->where(function($q) use ($keyword) {
+                $q->where('item_code', 'like', "%{$keyword}%")
+                  ->orWhere('item_name', 'like', "%{$keyword}%");
+            });
         }
-    </script>
-</body>
-</html>
+
+        // Filter: Multiple Categories (Array)
+        if ($request->filled('categories') && is_array($request->categories)) {
+            $query->whereIn('category_name', $request->categories);
+        }
+
+        // Filter: Inclusive Price Range
+        if ($request->filled('min_price')) {
+            $query->where('bulk_price', '>=', $request->min_price);
+        }
+        if ($request->filled('max_price')) {
+            $query->where('bulk_price', '<=', $request->max_price);
+        }
+
+        // Paginate results for the dashboard
+        $products = $query->orderBy('category_name')->paginate(15)->withQueryString();
+
+        return view('catalog', compact('products', 'categories'));
+    }
+
+    /**
+     * Handle the uploaded PDF and Sync the Database via Python
+     */
+    public function processUpload(Request $request)
+    {
+        // Validate the file (up to 50MB)
+        $request->validate([
+            'catalog_pdf' => 'required|mimes:pdf|max:51200',
+        ]);
+
+        // Store the file on the local disk to guarantee a predictable path
+        $filePath = $request->file('catalog_pdf')->storeAs('uploads', 'latest_catalog.pdf', 'local');
+        $fullPath = Storage::disk('local')->path($filePath);
+
+        // Path to your Python script
+        $scriptPath = base_path('pdf_extractor/extract.py');
+
+        // Execute Python using PYTHONPATH to bypass strict directory permissions
+        $pythonPath = "PYTHONPATH=/app/venv/lib/python3.11/site-packages";
+        $command = "$pythonPath python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($fullPath) . " 2>&1";
+
+        $output = shell_exec($command);
+        $data = json_decode($output, true);
+
+        // Validation & Raw Error Capture
+        if (!$data || isset($data['error'])) {
+            $errorDetail = $data['error'] ?? "Python Error: " . ($output ?: 'No response.');
+            return back()->withErrors(['catalog_pdf' => "Sync Failed: " . $errorDetail]);
+        }
+
+        $incomingSkus = [];
+
+        // Insert New & Update Existing
+        foreach ($data as $item) {
+            if (empty($item['item_code'])) continue;
+
+            $incomingSkus[] = $item['item_code'];
+
+            Product::updateOrCreate(
+                ['item_code' => $item['item_code']],
+                [
+                    'category_name'    => $item['category_name'],
+                    'item_name'        => $item['item_name'],
+                    'colors_available' => $item['colors_available'],
+                    'image_link'       => $item['image_link'],
+                    'detail_link'      => $item['detail_link'],
+                    'sample_price'     => $item['sample_price'],
+                    'bulk_price'       => $item['bulk_price'],
+                    'comments'         => $item['comments'],
+                    'is_active'        => true,
+                ]
+            );
+        }
+
+        // Smart Archiving: Hide products that were removed from the master PDF
+        if (count($incomingSkus) > 0) {
+            Product::whereNotIn('item_code', $incomingSkus)->update(['is_active' => false]);
+        }
+
+        return back()->with('success', 'Database synced successfully! Processed ' . count($incomingSkus) . ' active items.');
+    }
+
+    /**
+     * Generate and Download the Custom PDF Catalog
+     */
+    public function exportPdf(Request $request)
+    {
+        $query = Product::where('is_active', true);
+
+        // Mirror the exact same filters from the Advanced Search
+        if ($request->filled('keyword')) {
+            $keyword = $request->keyword;
+            $query->where(function($q) use ($keyword) {
+                $q->where('item_code', 'like', "%{$keyword}%")
+                  ->orWhere('item_name', 'like', "%{$keyword}%");
+            });
+        }
+
+        if ($request->filled('categories') && is_array($request->categories)) {
+            $query->whereIn('category_name', $request->categories);
+        }
+
+        if ($request->filled('min_price')) {
+            $query->where('bulk_price', '>=', $request->min_price);
+        }
+        if ($request->filled('max_price')) {
+            $query->where('bulk_price', '<=', $request->max_price);
+        }
+
+        // Get ALL matching products for the export (no pagination)
+        $products = $query->orderBy('category_name')->get();
+
+        // Check if the user wants prices shown and grab the markup percentage
+        $showPrice = $request->input('show_price', 'yes') === 'yes';
+        $markupPercentage = (float) $request->input('markup_percentage', 0);
+
+        // Apply dynamic pricing logic
+        foreach ($products as $product) {
+            if ($showPrice && $product->bulk_price) {
+                $multiplier = 1 + ($markupPercentage / 100);
+                $product->custom_price = $product->bulk_price * $multiplier;
+            } else {
+                $product->custom_price = null;
+            }
+        }
+
+        // Load the view from resources/views/pdf/catalog.blade.php
+        $pdf = Pdf::loadView('pdf.catalog', compact('products', 'showPrice'));
+
+        // Optimize paper size for catalog printing
+        $pdf->setPaper('A4', 'portrait');
+
+        return $pdf->download('IPDS_Custom_Catalog.pdf');
+    }
+}
