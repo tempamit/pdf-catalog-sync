@@ -27,12 +27,12 @@
         <tr>
         @foreach($products as $index => $product)
             <td class="product-cell">
-                @if($product->image_link)
+            @if($product->image_link && str_starts_with($product->image_link, 'http'))
                     <div class="img-container">
                         <img src="{{ $product->image_link }}" alt="Product Image">
                     </div>
                 @else
-                    <div class="placeholder">Placeholder</div>
+                    <div class="placeholder">No Image</div>
                 @endif
 
                 <p class="sku">{{ $product->item_code }}</p>
