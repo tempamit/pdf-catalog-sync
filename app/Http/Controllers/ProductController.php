@@ -107,4 +107,48 @@ class ProductController extends Controller
 
         return back()->with('success', 'Catalog synced successfully! Processed ' . count($incomingSkus) . ' active items.');
     }
+
+    // Generate and Download the PDF
+    public function exportPdf(Request $request)
+    {
+        // 1. Recreate the exact same search query
+        $query = Product::where('is_active', true);
+
+        if ($request->filled('keyword')) {
+            $keyword = $request->keyword;
+            $query->where(function($q) use ($keyword) {
+                $q->where('item_code', 'like', "%{$keyword}%")
+                  ->orWhere('item_name', 'like', "%{$keyword}%")
+                  ->orWhere('category_name', 'like', "%{$keyword}%");
+            });
+        }
+
+        if ($request->filled('max_price')) {
+            $query->where('bulk_price', '<=', $request->max_price);
+        }
+
+        // Get all matching products for the export (no pagination here)
+        $products = $query->get();
+
+        // 2. Grab the export settings from your modal
+        $showPrice = $request->input('show_price', 'yes') === 'yes';
+        $markupPercentage = (float) $request->input('markup_percentage', 0);
+
+        // 3. Calculate the new custom prices
+        foreach ($products as $product) {
+            if ($showPrice && $product->bulk_price) {
+                // Example: 150 base price + 50% markup = 150 * 1.50 = 225
+                $multiplier = 1 + ($markupPercentage / 100);
+                $product->custom_price = $product->bulk_price * $multiplier;
+            } else {
+                $product->custom_price = null;
+            }
+        }
+
+        // 4. Generate the PDF using a specific view
+        $pdf = \PDF::loadView('pdf.catalog', compact('products', 'showPrice'));
+
+        // Download the file instantly to your device
+        return $pdf->download('IPDS_Custom_Catalog.pdf');
+    }
 }
