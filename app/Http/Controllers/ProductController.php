@@ -58,17 +58,17 @@ class ProductController extends Controller
         // Define the path to our Python script
         $scriptPath = base_path('pdf_extractor/extract.py');
 
-        // Execute the Python script and capture the JSON output
-        // Note: Make sure 'python3' is accessible in your Hostinger/Coolify environment
-        $command = escapeshellcmd("python3 {$scriptPath} \"{$fullPath}\"");
+        // Safely construct the command and capture ALL system errors (2>&1)
+        $command = "/opt/venv/bin/python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($fullPath) . " 2>&1";
         $output = shell_exec($command);
 
         // Decode the JSON string returned from Python
         $data = json_decode($output, true);
 
-        // RULE 1: Strict Format Validation
+        // RULE 1: Strict Format Validation (Now with raw output logging!)
         if (!$data || isset($data['error'])) {
-            $errorMessage = $data['error'] ?? 'Failed to parse the PDF. Please ensure the table format strictly matches the master template.';
+            // If Python crashed, show exactly what it said instead of the generic message
+            $errorMessage = $data['error'] ?? "Python System Error: " . ($output ?: 'No output received from Python.');
             return back()->withErrors(['catalog_pdf' => $errorMessage]);
         }
 
