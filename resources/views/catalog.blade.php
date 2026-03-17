@@ -162,26 +162,27 @@
         </div>
         <div class="grid grid-cols-4 gap-[1px] bg-gray-700 text-lg">
             <button class="bg-gray-300 hover:bg-gray-400 text-black py-3 font-bold col-span-2" onclick="calcAction('clear')">C</button>
-            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('/')">&divide;</button>
-            <button class="bg-blue-600 hover:bg-blue-500 text-white py-3 font-bold" onclick="calcAction('*')">&times;</button>
+            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('%')">%</button>
+            <button class="bg-blue-600 hover:bg-blue-500 text-white py-3 font-bold" onclick="calcAction('/')">&divide;</button>
 
             <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('7')">7</button>
             <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('8')">8</button>
             <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('9')">9</button>
-            <button class="bg-blue-600 hover:bg-blue-500 text-white py-3 font-bold" onclick="calcAction('-')">&minus;</button>
+            <button class="bg-blue-600 hover:bg-blue-500 text-white py-3 font-bold" onclick="calcAction('*')">&times;</button>
 
             <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('4')">4</button>
             <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('5')">5</button>
             <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('6')">6</button>
-            <button class="bg-blue-600 hover:bg-blue-500 text-white py-3 font-bold" onclick="calcAction('+')">+</button>
+            <button class="bg-blue-600 hover:bg-blue-500 text-white py-3 font-bold" onclick="calcAction('-')">&minus;</button>
 
             <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('1')">1</button>
             <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('2')">2</button>
             <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('3')">3</button>
-            <button class="bg-green-600 hover:bg-green-500 text-white py-3 font-bold row-span-2" onclick="calcAction('=')">=</button>
+            <button class="bg-blue-600 hover:bg-blue-500 text-white py-3 font-bold" onclick="calcAction('+')">+</button>
 
             <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold col-span-2" onclick="calcAction('0')">0</button>
             <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('.')">.</button>
+            <button class="bg-green-600 hover:bg-green-500 text-white py-3 font-bold" onclick="calcAction('=')">=</button>
         </div>
     </div>
 
@@ -192,10 +193,10 @@
 
 <script>
     /* ---------------------------------------------------
-       1. PERSISTENT MEMORY LOGIC (Shopping Cart)
+       1. PERSISTENT MEMORY LOGIC (Upgraded to localStorage)
     --------------------------------------------------- */
-    // Load from memory or start fresh
-    let selectedProducts = new Set(JSON.parse(sessionStorage.getItem('pdfSelectedItems') || '[]'));
+    // Uses localStorage so it survives across form searches and page reloads
+    let selectedProducts = new Set(JSON.parse(localStorage.getItem('ipds_cart_v2') || '[]'));
     const countDisplay = document.getElementById('exportCount');
     const hiddenInput = document.getElementById('selectedProductsInput');
 
@@ -203,7 +204,7 @@
         const arr = [...selectedProducts];
         hiddenInput.value = JSON.stringify(arr);
         countDisplay.innerText = selectedProducts.size;
-        sessionStorage.setItem('pdfSelectedItems', JSON.stringify(arr));
+        localStorage.setItem('ipds_cart_v2', JSON.stringify(arr));
     }
 
     // Function to empty the cart completely
@@ -225,6 +226,7 @@
                 document.getElementById('card-' + cb.dataset.id).classList.add('ring-2', 'ring-blue-500', 'bg-blue-50');
             }
         });
+        // Important: Update the counter even if the selected products aren't currently on the screen
         updateExportForm();
     });
 
@@ -298,16 +300,16 @@
     function openModal(imageSrc) {
         document.getElementById('modalImage').src = imageSrc;
         document.getElementById('imageModal').classList.remove('hidden');
-        document.body.style.overflow = 'hidden'; // Stop background scrolling
+        document.body.style.overflow = 'hidden';
     }
 
     function closeModal() {
         document.getElementById('imageModal').classList.add('hidden');
-        document.body.style.overflow = 'auto'; // Restore scrolling
+        document.body.style.overflow = 'auto';
     }
 
     /* ---------------------------------------------------
-       4. FLOATING CALCULATOR LOGIC
+       4. FLOATING CALCULATOR LOGIC (UPDATED WITH %)
     --------------------------------------------------- */
     let calcScreen = document.getElementById('calcDisplay');
 
@@ -320,14 +322,16 @@
             calcScreen.value = '0';
         } else if (val === '=') {
             try {
-                // Safely evaluate simple math using the function constructor
-                calcScreen.value = new Function('return ' + calcScreen.value)();
+                // The regex replaces '%' with '/100' so percentages evaluate properly
+                let expression = calcScreen.value.replace(/%/g, '/100');
+                calcScreen.value = new Function('return ' + expression)();
             } catch (e) {
                 calcScreen.value = 'Error';
                 setTimeout(() => calcScreen.value = '0', 1000);
             }
         } else {
-            if (calcScreen.value === '0' && val !== '.') {
+            // Prevent replacing 0 with operators like + or *
+            if (calcScreen.value === '0' && val !== '.' && val !== '/' && val !== '*' && val !== '+' && val !== '-' && val !== '%') {
                 calcScreen.value = val;
             } else {
                 calcScreen.value += val;
