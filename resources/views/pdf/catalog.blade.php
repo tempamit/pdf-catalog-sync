@@ -63,7 +63,7 @@
 
     <footer>
         <div class="footer-contact">
-            www.unigifts.in &nbsp;|&nbsp; info@unigifts.in &nbsp;|&nbsp; +91-7503010601 &nbsp;|&nbsp; instagram.com/unigifts.in
+            www.unigifts.in &nbsp;|&nbsp; info@unigifts.in &nbsp;|&nbsp; +91-7503010601 &nbsp;|&nbsp; https://www.instagram.com/unigifts.in/
         </div>
         <div class="footer-disclaimer">
             * GST + Branding + Freight charges extra as applicable
