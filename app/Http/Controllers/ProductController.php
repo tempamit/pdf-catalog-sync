@@ -119,7 +119,7 @@ class ProductController extends Controller
         return back()->with('success', 'Database synced successfully! Processed ' . count($incomingSkus) . ' active items.');
     }
 
-   /**
+    /**
      * Generate and Download the Custom PDF Catalog
      */
     public function exportPdf(Request $request)
@@ -164,3 +164,4 @@ class ProductController extends Controller
 
         return $pdf->download('UniGifts_Product_Catalogue.pdf');
     }
+}
