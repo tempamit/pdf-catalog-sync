@@ -25,12 +25,12 @@ class ProductController extends Controller
         // Start the query with active products
         $query = Product::where('is_active', true);
 
-        // Filter: Keyword (SKU or Name)
+        // Filter: Keyword (SKU or Name) - UPDATED TO ILIKE FOR CASE-INSENSITIVE POSTGRES SEARCH
         if ($request->filled('keyword')) {
             $keyword = $request->keyword;
             $query->where(function($q) use ($keyword) {
-                $q->where('item_code', 'like', "%{$keyword}%")
-                  ->orWhere('item_name', 'like', "%{$keyword}%");
+                $q->where('item_code', 'ilike', "%{$keyword}%")
+                  ->orWhere('item_name', 'ilike', "%{$keyword}%");
             });
         }
 
@@ -54,7 +54,7 @@ class ProductController extends Controller
             $query->orderBy('category_name', 'asc');
         }
 
-        // Fetch the filtered products (NO PAGINATION - Load all for frontend filtering)
+        // Fetch the filtered products
         $products = $query->get();
 
         // Dynamically extract only the categories that exist in these exact search results
@@ -73,21 +73,17 @@ class ProductController extends Controller
             'catalog_pdf' => 'required|mimes:pdf|max:51200',
         ]);
 
-        // Store the file on the local disk to guarantee a predictable path
         $filePath = $request->file('catalog_pdf')->storeAs('uploads', 'latest_catalog.pdf', 'local');
         $fullPath = Storage::disk('local')->path($filePath);
-
-        // Path to your Python script
         $scriptPath = base_path('pdf_extractor/extract.py');
 
-        // Execute Python using PYTHONPATH to bypass strict directory permissions
+        // Execute Python using PYTHONPATH
         $pythonPath = "PYTHONPATH=/app/venv/lib/python3.11/site-packages";
         $command = "$pythonPath python3 " . escapeshellarg($scriptPath) . " " . escapeshellarg($fullPath) . " 2>&1";
 
         $output = shell_exec($command);
         $data = json_decode($output, true);
 
-        // Validation & Raw Error Capture
         if (!$data || isset($data['error'])) {
             $errorDetail = $data['error'] ?? "Python Error: " . ($output ?: 'No response.');
             return back()->withErrors(['catalog_pdf' => "Sync Failed: " . $errorDetail]);
@@ -95,7 +91,6 @@ class ProductController extends Controller
 
         $incomingSkus = [];
 
-        // Insert New & Update Existing
         foreach ($data as $item) {
             if (empty($item['item_code'])) continue;
 
@@ -117,7 +112,6 @@ class ProductController extends Controller
             );
         }
 
-        // Smart Archiving: Hide products that were removed from the master PDF
         if (count($incomingSkus) > 0) {
             Product::whereNotIn('item_code', $incomingSkus)->update(['is_active' => false]);
         }
@@ -130,23 +124,19 @@ class ProductController extends Controller
      */
     public function exportPdf(Request $request)
     {
-        // Require at least one product to be selected
         $request->validate(['selected_products' => 'required|string']);
 
-        // Decode the JSON array of selected product IDs sent from the frontend
         $selectedIds = json_decode($request->selected_products, true);
 
         if (empty($selectedIds)) {
             return back()->withErrors(['export' => 'Please select at least one product.']);
         }
 
-        // Fetch ONLY the specific products the user checked
         $products = Product::whereIn('id', $selectedIds)->orderBy('category_name')->get();
 
         $showPrice = $request->input('show_price', 'yes') === 'yes';
         $markupPercentage = (float) $request->input('markup_percentage', 0);
 
-        // Apply dynamic pricing logic
         foreach ($products as $product) {
             if ($showPrice && $product->bulk_price) {
                 $multiplier = 1 + ($markupPercentage / 100);
@@ -155,12 +145,10 @@ class ProductController extends Controller
                 $product->custom_price = null;
             }
         }
-        // Load the view from resources/views/pdf/catalog.blade.php
-        // Give DOMPDF permission to download external images safely
-        $pdf = Pdf::setOptions(['isRemoteEnabled' => true])->loadView('pdf.catalog', compact('products', 'showPrice'));
 
-        // Optimize paper size for catalog printing
+        $pdf = Pdf::setOptions(['isRemoteEnabled' => true])->loadView('pdf.catalog', compact('products', 'showPrice'));
         $pdf->setPaper('A4', 'portrait');
+
         return $pdf->download('IPDS_Custom_Catalog.pdf');
     }
 }

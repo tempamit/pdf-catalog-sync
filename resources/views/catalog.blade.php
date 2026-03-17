@@ -75,7 +75,7 @@
 
                     <div class="flex items-center justify-between gap-2">
                         <label class="text-sm font-semibold text-gray-600">Markup %</label>
-                        <input type="number" name="markup_percentage" value="0" min="0" class="border border-gray-300 rounded px-2 py-1 text-sm w-20 text-center">
+                        <input type="number" name="markup_percentage" value="40" min="0" class="border border-gray-300 rounded px-2 py-1 text-sm w-20 text-center">
                     </div>
 
                     <button type="button" onclick="selectAllProducts()" class="w-full bg-blue-100 text-blue-700 font-bold py-2 rounded-lg hover:bg-blue-200 transition text-sm mb-2">
@@ -193,9 +193,8 @@
 
 <script>
     /* ---------------------------------------------------
-       1. PERSISTENT MEMORY LOGIC (Upgraded to localStorage)
+       1. PERSISTENT MEMORY LOGIC
     --------------------------------------------------- */
-    // Uses localStorage so it survives across form searches and page reloads
     let selectedProducts = new Set(JSON.parse(localStorage.getItem('ipds_cart_v2') || '[]'));
     const countDisplay = document.getElementById('exportCount');
     const hiddenInput = document.getElementById('selectedProductsInput');
@@ -207,18 +206,15 @@
         localStorage.setItem('ipds_cart_v2', JSON.stringify(arr));
     }
 
-    // Function to empty the cart completely
     function clearMemory() {
         selectedProducts.clear();
         updateExportForm();
-        // Uncheck all boxes on the current screen
         document.querySelectorAll('.product-selector').forEach(cb => {
             cb.checked = false;
             document.getElementById('card-' + cb.dataset.id).classList.remove('ring-2', 'ring-blue-500', 'bg-blue-50');
         });
     }
 
-    // On Page Load: Check boxes if they exist in memory
     document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.product-selector').forEach(cb => {
             if (selectedProducts.has(cb.dataset.id)) {
@@ -226,11 +222,9 @@
                 document.getElementById('card-' + cb.dataset.id).classList.add('ring-2', 'ring-blue-500', 'bg-blue-50');
             }
         });
-        // Important: Update the counter even if the selected products aren't currently on the screen
         updateExportForm();
     });
 
-    // Listen to individual checkbox clicks
     document.querySelectorAll('.product-selector').forEach(cb => {
         cb.addEventListener('change', function() {
             const card = document.getElementById('card-' + this.dataset.id);
@@ -245,7 +239,6 @@
         });
     });
 
-    // Helper to select all VISIBLE products at once
     function selectAllProducts() {
         document.querySelectorAll('.product-card:not(.hidden) .product-selector').forEach(cb => {
             if (!cb.checked) {
@@ -263,7 +256,6 @@
             const isActive = this.dataset.active === 'true';
             const categoryToToggle = this.dataset.category;
 
-            // Toggle Button Styling
             if (isActive) {
                 this.dataset.active = 'false';
                 this.classList.replace('bg-blue-600', 'bg-gray-200');
@@ -276,17 +268,16 @@
                 this.classList.add('hover:bg-blue-700');
             }
 
-            // Show/Hide matching cards AND uncheck them if they are being hidden
             document.querySelectorAll('.product-card').forEach(card => {
                 if (card.dataset.category === categoryToToggle) {
-                    if (isActive) { // Turning OFF
+                    if (isActive) {
                         card.classList.add('hidden');
                         const checkbox = card.querySelector('.product-selector');
                         if (checkbox.checked) {
                             checkbox.checked = false;
                             checkbox.dispatchEvent(new Event('change'));
                         }
-                    } else { // Turning ON
+                    } else {
                         card.classList.remove('hidden');
                     }
                 }
@@ -309,7 +300,7 @@
     }
 
     /* ---------------------------------------------------
-       4. FLOATING CALCULATOR LOGIC (UPDATED WITH %)
+       4. FLOATING CALCULATOR LOGIC (UPGRADED % MATH)
     --------------------------------------------------- */
     let calcScreen = document.getElementById('calcDisplay');
 
@@ -322,15 +313,25 @@
             calcScreen.value = '0';
         } else if (val === '=') {
             try {
-                // The regex replaces '%' with '/100' so percentages evaluate properly
-                let expression = calcScreen.value.replace(/%/g, '/100');
+                let expression = calcScreen.value;
+
+                // Smart regex to handle "X + Y%" or "X - Y%" exactly like a pocket calculator
+                // e.g., 100 + 50% becomes 100 + (100 * 50 / 100) = 150
+                expression = expression.replace(/(.*?)([+-])\s*([\d\.]+)%/g, function(match, leftSide, operator, percentage) {
+                    return leftSide + operator + '((' + leftSide + ')*' + percentage + '/100)';
+                });
+
+                // For direct multiplication (e.g., 500 * 30%), just divide by 100
+                expression = expression.replace(/%/g, '/100');
+
+                // Evaluate the fixed expression
                 calcScreen.value = new Function('return ' + expression)();
             } catch (e) {
                 calcScreen.value = 'Error';
                 setTimeout(() => calcScreen.value = '0', 1000);
             }
         } else {
-            // Prevent replacing 0 with operators like + or *
+            // Prevent replacing 0 with operators
             if (calcScreen.value === '0' && val !== '.' && val !== '/' && val !== '*' && val !== '+' && val !== '-' && val !== '%') {
                 calcScreen.value = val;
             } else {
