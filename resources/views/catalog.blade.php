@@ -6,7 +6,7 @@
     <title>IPDS Product Catalog</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50 font-sans text-gray-800">
+<body class="bg-gray-50 font-sans text-gray-800 relative">
 
 <div class="container mx-auto px-4 py-8">
     <div class="flex flex-col md:flex-row gap-6">
@@ -47,8 +47,15 @@
             </form>
 
             <div class="mt-8 pt-6 border-t border-gray-200">
-                <h3 class="text-sm font-bold text-red-600 mb-1 uppercase">Export Selected</h3>
-                <p class="text-xs text-gray-500 mb-4"><span id="exportCount" class="font-bold text-lg text-gray-800">0</span> items selected</p>
+                <div class="flex justify-between items-end mb-4">
+                    <div>
+                        <h3 class="text-sm font-bold text-red-600 mb-1 uppercase">Export Selected</h3>
+                        <p class="text-xs text-gray-500"><span id="exportCount" class="font-bold text-lg text-gray-800">0</span> items selected</p>
+                    </div>
+                    <button type="button" onclick="clearMemory()" class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200 font-bold transition">
+                        Clear Cart
+                    </button>
+                </div>
 
                 @if($errors->has('export'))
                     <div class="text-red-500 text-xs font-bold mb-2">{{ $errors->first('export') }}</div>
@@ -105,7 +112,9 @@
 
                     <div class="relative h-48 bg-white border-b flex items-center justify-center p-2">
                         @if($product->image_link && str_starts_with($product->image_link, 'http'))
-                            <img src="{{ $product->image_link }}" alt="{{ $product->item_name }}" loading="lazy" class="max-w-full max-h-full object-contain">
+                            <img src="{{ $product->image_link }}" alt="{{ $product->item_name }}" loading="lazy"
+                                 class="max-w-full max-h-full object-contain cursor-zoom-in hover:opacity-80 transition"
+                                 onclick="openModal('{{ $product->image_link }}')">
                         @else
                             <div class="text-gray-300 text-xs italic bg-gray-50 w-full h-full flex items-center justify-center rounded">No Image</div>
                         @endif
@@ -139,17 +148,87 @@
     </div>
 </div>
 
+<div id="imageModal" class="fixed inset-0 z-50 hidden bg-black bg-opacity-80 flex items-center justify-center p-4" onclick="closeModal()">
+    <div class="relative w-full max-w-4xl flex justify-center items-center">
+        <button onclick="closeModal()" class="absolute -top-12 right-0 text-white text-4xl font-bold hover:text-red-500 transition">&times;</button>
+        <img id="modalImage" src="" class="max-w-full max-h-[85vh] object-contain rounded shadow-2xl bg-white p-2" onclick="event.stopPropagation()">
+    </div>
+</div>
+
+<div id="calcWrapper" class="fixed bottom-6 right-6 z-40 flex flex-col items-end">
+    <div id="calculatorUI" class="hidden mb-4 bg-gray-800 rounded-xl shadow-2xl overflow-hidden w-64 border border-gray-700">
+        <div class="p-4 bg-gray-900 border-b border-gray-700">
+            <input type="text" id="calcDisplay" class="w-full bg-transparent text-right text-2xl font-mono text-white outline-none" readonly value="0">
+        </div>
+        <div class="grid grid-cols-4 gap-[1px] bg-gray-700 text-lg">
+            <button class="bg-gray-300 hover:bg-gray-400 text-black py-3 font-bold col-span-2" onclick="calcAction('clear')">C</button>
+            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('/')">&divide;</button>
+            <button class="bg-blue-600 hover:bg-blue-500 text-white py-3 font-bold" onclick="calcAction('*')">&times;</button>
+
+            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('7')">7</button>
+            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('8')">8</button>
+            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('9')">9</button>
+            <button class="bg-blue-600 hover:bg-blue-500 text-white py-3 font-bold" onclick="calcAction('-')">&minus;</button>
+
+            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('4')">4</button>
+            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('5')">5</button>
+            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('6')">6</button>
+            <button class="bg-blue-600 hover:bg-blue-500 text-white py-3 font-bold" onclick="calcAction('+')">+</button>
+
+            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('1')">1</button>
+            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('2')">2</button>
+            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('3')">3</button>
+            <button class="bg-green-600 hover:bg-green-500 text-white py-3 font-bold row-span-2" onclick="calcAction('=')">=</button>
+
+            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold col-span-2" onclick="calcAction('0')">0</button>
+            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('.')">.</button>
+        </div>
+    </div>
+
+    <button onclick="toggleCalc()" class="bg-blue-600 text-white p-4 rounded-full shadow-2xl hover:bg-blue-700 transition border-2 border-white">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+    </button>
+</div>
+
 <script>
-    const selectedProducts = new Set();
+    /* ---------------------------------------------------
+       1. PERSISTENT MEMORY LOGIC (Shopping Cart)
+    --------------------------------------------------- */
+    // Load from memory or start fresh
+    let selectedProducts = new Set(JSON.parse(sessionStorage.getItem('pdfSelectedItems') || '[]'));
     const countDisplay = document.getElementById('exportCount');
     const hiddenInput = document.getElementById('selectedProductsInput');
 
     function updateExportForm() {
-        hiddenInput.value = JSON.stringify([...selectedProducts]);
+        const arr = [...selectedProducts];
+        hiddenInput.value = JSON.stringify(arr);
         countDisplay.innerText = selectedProducts.size;
+        sessionStorage.setItem('pdfSelectedItems', JSON.stringify(arr));
     }
 
-    // 1. Manage Product Checkboxes
+    // Function to empty the cart completely
+    function clearMemory() {
+        selectedProducts.clear();
+        updateExportForm();
+        // Uncheck all boxes on the current screen
+        document.querySelectorAll('.product-selector').forEach(cb => {
+            cb.checked = false;
+            document.getElementById('card-' + cb.dataset.id).classList.remove('ring-2', 'ring-blue-500', 'bg-blue-50');
+        });
+    }
+
+    // On Page Load: Check boxes if they exist in memory
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.product-selector').forEach(cb => {
+            if (selectedProducts.has(cb.dataset.id)) {
+                cb.checked = true;
+                document.getElementById('card-' + cb.dataset.id).classList.add('ring-2', 'ring-blue-500', 'bg-blue-50');
+            }
+        });
+        updateExportForm();
+    });
+
+    // Listen to individual checkbox clicks
     document.querySelectorAll('.product-selector').forEach(cb => {
         cb.addEventListener('change', function() {
             const card = document.getElementById('card-' + this.dataset.id);
@@ -164,7 +243,19 @@
         });
     });
 
-    // 2. Horizontal Category Pill Logic (Frontend Filtering & Safety Uncheck)
+    // Helper to select all VISIBLE products at once
+    function selectAllProducts() {
+        document.querySelectorAll('.product-card:not(.hidden) .product-selector').forEach(cb => {
+            if (!cb.checked) {
+                cb.checked = true;
+                cb.dispatchEvent(new Event('change'));
+            }
+        });
+    }
+
+    /* ---------------------------------------------------
+       2. HORIZONTAL CATEGORY PILLS LOGIC
+    --------------------------------------------------- */
     document.querySelectorAll('.category-pill').forEach(pill => {
         pill.addEventListener('click', function() {
             const isActive = this.dataset.active === 'true';
@@ -186,14 +277,14 @@
             // Show/Hide matching cards AND uncheck them if they are being hidden
             document.querySelectorAll('.product-card').forEach(card => {
                 if (card.dataset.category === categoryToToggle) {
-                    if (isActive) { // We are turning it OFF
+                    if (isActive) { // Turning OFF
                         card.classList.add('hidden');
                         const checkbox = card.querySelector('.product-selector');
                         if (checkbox.checked) {
                             checkbox.checked = false;
-                            checkbox.dispatchEvent(new Event('change')); // Triggers updateExportForm automatically
+                            checkbox.dispatchEvent(new Event('change'));
                         }
-                    } else { // We are turning it ON
+                    } else { // Turning ON
                         card.classList.remove('hidden');
                     }
                 }
@@ -201,13 +292,47 @@
         });
     });
 
-    function selectAllProducts() {
-        document.querySelectorAll('.product-card:not(.hidden) .product-selector').forEach(cb => {
-            if (!cb.checked) {
-                cb.checked = true;
-                cb.dispatchEvent(new Event('change'));
+    /* ---------------------------------------------------
+       3. IMAGE ZOOM MODAL LOGIC
+    --------------------------------------------------- */
+    function openModal(imageSrc) {
+        document.getElementById('modalImage').src = imageSrc;
+        document.getElementById('imageModal').classList.remove('hidden');
+        document.body.style.overflow = 'hidden'; // Stop background scrolling
+    }
+
+    function closeModal() {
+        document.getElementById('imageModal').classList.add('hidden');
+        document.body.style.overflow = 'auto'; // Restore scrolling
+    }
+
+    /* ---------------------------------------------------
+       4. FLOATING CALCULATOR LOGIC
+    --------------------------------------------------- */
+    let calcScreen = document.getElementById('calcDisplay');
+
+    function toggleCalc() {
+        document.getElementById('calculatorUI').classList.toggle('hidden');
+    }
+
+    function calcAction(val) {
+        if (val === 'clear') {
+            calcScreen.value = '0';
+        } else if (val === '=') {
+            try {
+                // Safely evaluate simple math using the function constructor
+                calcScreen.value = new Function('return ' + calcScreen.value)();
+            } catch (e) {
+                calcScreen.value = 'Error';
+                setTimeout(() => calcScreen.value = '0', 1000);
             }
-        });
+        } else {
+            if (calcScreen.value === '0' && val !== '.') {
+                calcScreen.value = val;
+            } else {
+                calcScreen.value += val;
+            }
+        }
     }
 </script>
 
