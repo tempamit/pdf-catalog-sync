@@ -119,7 +119,7 @@ class ProductController extends Controller
         return back()->with('success', 'Database synced successfully! Processed ' . count($incomingSkus) . ' active items.');
     }
 
-    /**
+   /**
      * Generate and Download the Custom PDF Catalog
      */
     public function exportPdf(Request $request)
@@ -137,18 +137,30 @@ class ProductController extends Controller
         $showPrice = $request->input('show_price', 'yes') === 'yes';
         $markupPercentage = (float) $request->input('markup_percentage', 0);
 
+        // 1. Generate the Secret Version Code
+        $tens = floor($markupPercentage / 10); // 0, 1, 2, 3, etc.
+        $ones = $markupPercentage % 10;        // 0, 2, 5, 8, etc.
+        $versionLetter = chr(65 + $tens);      // 65 is 'A' in ASCII. 0=A, 1=B, 2=C...
+        $versionCode = $versionLetter . ($ones > 0 ? $ones : ''); // e.g., 'D2' or 'A'
+
+        // 2. Apply Dynamic Pricing with Rounding UP to nearest 5
         foreach ($products as $product) {
             if ($showPrice && $product->bulk_price) {
                 $multiplier = 1 + ($markupPercentage / 100);
-                $product->custom_price = $product->bulk_price * $multiplier;
+                $exactPrice = $product->bulk_price * $multiplier;
+
+                // Round up to the nearest multiple of 5 (e.g., 161 -> 165)
+                $product->custom_price = ceil($exactPrice / 5) * 5;
             } else {
                 $product->custom_price = null;
             }
         }
 
-        $pdf = Pdf::setOptions(['isRemoteEnabled' => true])->loadView('pdf.catalog', compact('products', 'showPrice'));
+        // 3. Generate the PDF
+        $pdf = Pdf::setOptions(['isRemoteEnabled' => true])
+                  ->loadView('pdf.catalog', compact('products', 'showPrice', 'versionCode'));
+
         $pdf->setPaper('A4', 'portrait');
 
-        return $pdf->download('IPDS_Custom_Catalog.pdf');
+        return $pdf->download('UniGifts_Product_Catalogue.pdf');
     }
-}

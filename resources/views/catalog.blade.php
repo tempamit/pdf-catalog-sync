@@ -1,345 +1,104 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IPDS Product Catalog</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-50 font-sans text-gray-800 relative">
-
-<div class="container mx-auto px-4 py-8">
-    <div class="flex flex-col md:flex-row gap-6">
-
-        <aside class="w-full md:w-1/4 bg-white p-6 rounded-xl shadow-md h-fit md:sticky top-4 border">
-            <h2 class="text-xl font-bold mb-4 border-b pb-2">Search Catalog</h2>
-            <form action="{{ route('catalog.index') }}" method="GET" class="space-y-4">
-
-                <div>
-                    <label class="block text-sm font-semibold text-gray-600">Keyword / SKU</label>
-                    <input type="text" name="keyword" value="{{ request('keyword') }}" placeholder="Enter code or name..."
-                           class="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
-                </div>
-
-                <div>
-                    <label class="block text-sm font-semibold text-gray-600">Price Range (Rs.)</label>
-                    <div class="flex gap-2 mt-1">
-                        <input type="number" name="min_price" value="{{ request('min_price') }}" placeholder="Min"
-                               class="w-1/2 border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                        <input type="number" name="max_price" value="{{ request('max_price') }}" placeholder="Max"
-                               class="w-1/2 border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-sm font-semibold text-gray-600">Sort By</label>
-                    <select name="sort" class="w-full mt-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
-                        <option value="">Default (Category)</option>
-                        <option value="price_asc" {{ request('sort') == 'price_asc' ? 'selected' : '' }}>Price: Low to High</option>
-                        <option value="price_desc" {{ request('sort') == 'price_desc' ? 'selected' : '' }}>Price: High to Low</option>
-                    </select>
-                </div>
-
-                <div class="pt-4 flex gap-2">
-                    <button type="submit" class="flex-1 bg-gray-800 text-white font-bold py-2 rounded-lg hover:bg-black transition">Search</button>
-                    <a href="{{ route('catalog.index') }}" class="px-4 py-2 bg-gray-200 rounded-lg text-gray-600 hover:bg-gray-300 text-center font-bold">Clear</a>
-                </div>
-            </form>
-
-            <div class="mt-8 pt-6 border-t border-gray-200">
-                <div class="flex justify-between items-end mb-4">
-                    <div>
-                        <h3 class="text-sm font-bold text-red-600 mb-1 uppercase">Export Selected</h3>
-                        <p class="text-xs text-gray-500"><span id="exportCount" class="font-bold text-lg text-gray-800">0</span> items selected</p>
-                    </div>
-                    <button type="button" onclick="clearMemory()" class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200 font-bold transition">
-                        Clear Cart
-                    </button>
-                </div>
-
-                @if($errors->has('export'))
-                    <div class="text-red-500 text-xs font-bold mb-2">{{ $errors->first('export') }}</div>
-                @endif
-
-                <form action="{{ route('catalog.export') }}" method="POST" target="_blank" class="space-y-3" id="exportForm">
-                    @csrf
-                    <input type="hidden" name="selected_products" id="selectedProductsInput" value="[]">
-
-                    <div class="flex items-center justify-between gap-2">
-                        <label class="text-sm font-semibold text-gray-600">Show Prices?</label>
-                        <select name="show_price" class="border border-gray-300 rounded px-2 py-1 text-sm">
-                            <option value="yes">Yes</option>
-                            <option value="no">No</option>
-                        </select>
-                    </div>
-
-                    <div class="flex items-center justify-between gap-2">
-                        <label class="text-sm font-semibold text-gray-600">Markup %</label>
-                        <input type="number" name="markup_percentage" value="40" min="0" class="border border-gray-300 rounded px-2 py-1 text-sm w-20 text-center">
-                    </div>
-
-                    <button type="button" onclick="selectAllProducts()" class="w-full bg-blue-100 text-blue-700 font-bold py-2 rounded-lg hover:bg-blue-200 transition text-sm mb-2">
-                        Select All Visible Products
-                    </button>
-
-                    <button type="submit" class="w-full bg-red-600 text-white font-bold py-3 rounded-lg hover:bg-red-700 transition">
-                        Generate Custom PDF
-                    </button>
-                </form>
-            </div>
-        </aside>
-
-        <main class="flex-1">
-
-            @if(count($categories) > 0)
-            <div class="mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                <p class="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">Filter Categories in Current Search</p>
-                <div class="flex flex-wrap gap-2" id="categoryPills">
-                    @foreach($categories as $cat)
-                        <button type="button" class="category-pill bg-blue-600 text-white px-3 py-1.5 rounded-full text-xs font-semibold transition hover:bg-blue-700" data-category="{{ $cat }}" data-active="true">
-                            {{ $cat }}
-                        </button>
-                    @endforeach
-                </div>
-            </div>
-            @endif
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5" id="productGrid">
-                @forelse($products as $product)
-                <div class="product-card bg-white rounded-lg shadow border overflow-hidden flex flex-col relative transition" id="card-{{ $product->id }}" data-category="{{ $product->category_name }}">
-
-                    <input type="checkbox" class="product-selector absolute top-2 left-2 z-10 w-5 h-5 cursor-pointer" data-id="{{ $product->id }}">
-
-                    <div class="relative h-48 bg-white border-b flex items-center justify-center p-2">
-                        @if($product->image_link && str_starts_with($product->image_link, 'http'))
-                            <img src="{{ $product->image_link }}" alt="{{ $product->item_name }}" loading="lazy"
-                                 class="max-w-full max-h-full object-contain cursor-zoom-in hover:opacity-80 transition"
-                                 onclick="openModal('{{ $product->image_link }}')">
-                        @else
-                            <div class="text-gray-300 text-xs italic bg-gray-50 w-full h-full flex items-center justify-center rounded">No Image</div>
-                        @endif
-                    </div>
-
-                    <div class="p-3 flex-1 flex flex-col">
-                        <p class="text-[10px] text-gray-500 font-bold uppercase">{{ $product->category_name }} &bull; {{ $product->item_code }}</p>
-                        <h3 class="font-bold text-sm text-gray-800 mt-1 line-clamp-2">{{ $product->item_name }}</h3>
-
-                        <div class="mt-auto pt-3 flex items-center justify-between">
-                            <span class="text-md font-black text-blue-700">Rs. {{ number_format($product->bulk_price) }}</span>
-                            @if($product->detail_link && str_starts_with($product->detail_link, 'http'))
-                                <a href="{{ $product->detail_link }}" target="_blank" class="text-xs text-blue-500 hover:underline">View</a>
-                            @endif
-                        </div>
-
-                        @if($product->comments)
-                            <div class="mt-2 bg-yellow-100 border border-yellow-300 text-yellow-800 text-xs px-2 py-1.5 rounded shadow-sm font-semibold">
-                                {{ $product->comments }}
-                            </div>
-                        @endif
-                    </div>
-                </div>
-                @empty
-                <div class="col-span-full py-20 text-center text-gray-500 font-bold text-lg">
-                    No products found matching your criteria.
-                </div>
-                @endforelse
-            </div>
-        </main>
-    </div>
-</div>
-
-<div id="imageModal" class="fixed inset-0 z-50 hidden bg-black bg-opacity-80 flex items-center justify-center p-4" onclick="closeModal()">
-    <div class="relative w-full max-w-4xl flex justify-center items-center">
-        <button onclick="closeModal()" class="absolute -top-12 right-0 text-white text-4xl font-bold hover:text-red-500 transition">&times;</button>
-        <img id="modalImage" src="" class="max-w-full max-h-[85vh] object-contain rounded shadow-2xl bg-white p-2" onclick="event.stopPropagation()">
-    </div>
-</div>
-
-<div id="calcWrapper" class="fixed bottom-6 right-6 z-40 flex flex-col items-end">
-    <div id="calculatorUI" class="hidden mb-4 bg-gray-800 rounded-xl shadow-2xl overflow-hidden w-64 border border-gray-700">
-        <div class="p-4 bg-gray-900 border-b border-gray-700">
-            <input type="text" id="calcDisplay" class="w-full bg-transparent text-right text-2xl font-mono text-white outline-none" readonly value="0">
-        </div>
-        <div class="grid grid-cols-4 gap-[1px] bg-gray-700 text-lg">
-            <button class="bg-gray-300 hover:bg-gray-400 text-black py-3 font-bold col-span-2" onclick="calcAction('clear')">C</button>
-            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('%')">%</button>
-            <button class="bg-blue-600 hover:bg-blue-500 text-white py-3 font-bold" onclick="calcAction('/')">&divide;</button>
-
-            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('7')">7</button>
-            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('8')">8</button>
-            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('9')">9</button>
-            <button class="bg-blue-600 hover:bg-blue-500 text-white py-3 font-bold" onclick="calcAction('*')">&times;</button>
-
-            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('4')">4</button>
-            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('5')">5</button>
-            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('6')">6</button>
-            <button class="bg-blue-600 hover:bg-blue-500 text-white py-3 font-bold" onclick="calcAction('-')">&minus;</button>
-
-            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('1')">1</button>
-            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('2')">2</button>
-            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('3')">3</button>
-            <button class="bg-blue-600 hover:bg-blue-500 text-white py-3 font-bold" onclick="calcAction('+')">+</button>
-
-            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold col-span-2" onclick="calcAction('0')">0</button>
-            <button class="bg-gray-800 hover:bg-gray-700 text-white py-3 font-bold" onclick="calcAction('.')">.</button>
-            <button class="bg-green-600 hover:bg-green-500 text-white py-3 font-bold" onclick="calcAction('=')">=</button>
-        </div>
-    </div>
-
-    <button onclick="toggleCalc()" class="bg-blue-600 text-white p-4 rounded-full shadow-2xl hover:bg-blue-700 transition border-2 border-white">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
-    </button>
-</div>
-
-<script>
-    /* ---------------------------------------------------
-       1. PERSISTENT MEMORY LOGIC
-    --------------------------------------------------- */
-    let selectedProducts = new Set(JSON.parse(localStorage.getItem('ipds_cart_v2') || '[]'));
-    const countDisplay = document.getElementById('exportCount');
-    const hiddenInput = document.getElementById('selectedProductsInput');
-
-    function updateExportForm() {
-        const arr = [...selectedProducts];
-        hiddenInput.value = JSON.stringify(arr);
-        countDisplay.innerText = selectedProducts.size;
-        localStorage.setItem('ipds_cart_v2', JSON.stringify(arr));
-    }
-
-    function clearMemory() {
-        selectedProducts.clear();
-        updateExportForm();
-        document.querySelectorAll('.product-selector').forEach(cb => {
-            cb.checked = false;
-            document.getElementById('card-' + cb.dataset.id).classList.remove('ring-2', 'ring-blue-500', 'bg-blue-50');
-        });
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-        document.querySelectorAll('.product-selector').forEach(cb => {
-            if (selectedProducts.has(cb.dataset.id)) {
-                cb.checked = true;
-                document.getElementById('card-' + cb.dataset.id).classList.add('ring-2', 'ring-blue-500', 'bg-blue-50');
-            }
-        });
-        updateExportForm();
-    });
-
-    document.querySelectorAll('.product-selector').forEach(cb => {
-        cb.addEventListener('change', function() {
-            const card = document.getElementById('card-' + this.dataset.id);
-            if (this.checked) {
-                selectedProducts.add(this.dataset.id);
-                card.classList.add('ring-2', 'ring-blue-500', 'bg-blue-50');
-            } else {
-                selectedProducts.delete(this.dataset.id);
-                card.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-50');
-            }
-            updateExportForm();
-        });
-    });
-
-    function selectAllProducts() {
-        document.querySelectorAll('.product-card:not(.hidden) .product-selector').forEach(cb => {
-            if (!cb.checked) {
-                cb.checked = true;
-                cb.dispatchEvent(new Event('change'));
-            }
-        });
-    }
-
-    /* ---------------------------------------------------
-       2. HORIZONTAL CATEGORY PILLS LOGIC
-    --------------------------------------------------- */
-    document.querySelectorAll('.category-pill').forEach(pill => {
-        pill.addEventListener('click', function() {
-            const isActive = this.dataset.active === 'true';
-            const categoryToToggle = this.dataset.category;
-
-            if (isActive) {
-                this.dataset.active = 'false';
-                this.classList.replace('bg-blue-600', 'bg-gray-200');
-                this.classList.replace('text-white', 'text-gray-500');
-                this.classList.remove('hover:bg-blue-700');
-            } else {
-                this.dataset.active = 'true';
-                this.classList.replace('bg-gray-200', 'bg-blue-600');
-                this.classList.replace('text-gray-500', 'text-white');
-                this.classList.add('hover:bg-blue-700');
-            }
-
-            document.querySelectorAll('.product-card').forEach(card => {
-                if (card.dataset.category === categoryToToggle) {
-                    if (isActive) {
-                        card.classList.add('hidden');
-                        const checkbox = card.querySelector('.product-selector');
-                        if (checkbox.checked) {
-                            checkbox.checked = false;
-                            checkbox.dispatchEvent(new Event('change'));
-                        }
-                    } else {
-                        card.classList.remove('hidden');
-                    }
-                }
-            });
-        });
-    });
-
-    /* ---------------------------------------------------
-       3. IMAGE ZOOM MODAL LOGIC
-    --------------------------------------------------- */
-    function openModal(imageSrc) {
-        document.getElementById('modalImage').src = imageSrc;
-        document.getElementById('imageModal').classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
-    }
-
-    function closeModal() {
-        document.getElementById('imageModal').classList.add('hidden');
-        document.body.style.overflow = 'auto';
-    }
-
-    /* ---------------------------------------------------
-       4. FLOATING CALCULATOR LOGIC (UPGRADED % MATH)
-    --------------------------------------------------- */
-    let calcScreen = document.getElementById('calcDisplay');
-
-    function toggleCalc() {
-        document.getElementById('calculatorUI').classList.toggle('hidden');
-    }
-
-    function calcAction(val) {
-        if (val === 'clear') {
-            calcScreen.value = '0';
-        } else if (val === '=') {
-            try {
-                let expression = calcScreen.value;
-
-                // Smart regex to handle "X + Y%" or "X - Y%" exactly like a pocket calculator
-                // e.g., 100 + 50% becomes 100 + (100 * 50 / 100) = 150
-                expression = expression.replace(/(.*?)([+-])\s*([\d\.]+)%/g, function(match, leftSide, operator, percentage) {
-                    return leftSide + operator + '((' + leftSide + ')*' + percentage + '/100)';
-                });
-
-                // For direct multiplication (e.g., 500 * 30%), just divide by 100
-                expression = expression.replace(/%/g, '/100');
-
-                // Evaluate the fixed expression
-                calcScreen.value = new Function('return ' + expression)();
-            } catch (e) {
-                calcScreen.value = 'Error';
-                setTimeout(() => calcScreen.value = '0', 1000);
-            }
-        } else {
-            // Prevent replacing 0 with operators
-            if (calcScreen.value === '0' && val !== '.' && val !== '/' && val !== '*' && val !== '+' && val !== '-' && val !== '%') {
-                calcScreen.value = val;
-            } else {
-                calcScreen.value += val;
-            }
+    <meta charset="utf-8">
+    <title>UniGifts Product Catalogue</title>
+    <style>
+        /* This margin gives space for the fixed header and footer on every page */
+        @page {
+            margin: 90px 25px 70px 25px;
         }
-    }
-</script>
+        body { font-family: sans-serif; color: #333; margin: 0; padding: 0; }
+
+        /* Fixed Header appearing on every page */
+        header {
+            position: fixed;
+            top: -65px;
+            left: 0px;
+            right: 0px;
+            height: 50px;
+            text-align: center;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        /* Fixed Footer appearing on every page */
+        footer {
+            position: fixed;
+            bottom: -50px;
+            left: 0px;
+            right: 0px;
+            height: 40px;
+            text-align: center;
+            font-size: 10px;
+            color: #4b5563;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 6px;
+            line-height: 1.4;
+        }
+
+        .header-title { font-size: 16px; font-weight: bold; margin: 0; color: #1f2937; text-transform: uppercase; letter-spacing: 1px; }
+        .header-subtitle { font-size: 11px; font-weight: bold; color: #6b7280; margin-top: 4px; }
+
+        .footer-contact { font-weight: bold; color: #1f2937; }
+        .footer-disclaimer { font-style: italic; color: #b91c1c; font-weight: bold; margin-top: 2px;}
+
+        .product-table { width: 100%; border-collapse: collapse; }
+        .product-cell { width: 33.33%; padding: 12px; border: 1px solid #e5e7eb; text-align: center; vertical-align: top; }
+
+        .img-container { height: 130px; display: block; margin-bottom: 8px; }
+        .img-container img { max-width: 100%; max-height: 130px; object-fit: contain; }
+        .placeholder { height: 130px; background: #f9fafb; color: #9ca3af; line-height: 130px; font-size: 12px; margin-bottom: 8px; border: 1px dashed #d1d5db; }
+
+        .sku { font-size: 9px; color: #6b7280; font-weight: bold; text-transform: uppercase; margin: 0; }
+        .title { font-size: 11px; font-weight: bold; margin: 4px 0 8px; min-height: 28px; line-height: 1.3; }
+        .price { font-size: 14px; font-weight: bold; color: #1d4ed8; margin: 0; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1 class="header-title">UniGifts by Interactive Pixels Product Catalogue</h1>
+        <div class="header-subtitle">Version {{ $versionCode }} generated on {{ date('d M Y') }}</div>
+    </header>
+
+    <footer>
+        <div class="footer-contact">
+            www.unigifts.in &nbsp;|&nbsp; info@unigifts.in &nbsp;|&nbsp; +91-7503010601 &nbsp;|&nbsp; instagram.com/unigifts.in
+        </div>
+        <div class="footer-disclaimer">
+            * GST + Branding + Freight charges extra as applicable
+        </div>
+    </footer>
+
+    <main>
+        <table class="product-table">
+            <tr>
+            @foreach($products as $index => $product)
+                <td class="product-cell">
+                    @if($product->image_link && str_starts_with($product->image_link, 'http'))
+                        <div class="img-container">
+                            <img src="{{ $product->image_link }}" alt="Product Image">
+                        </div>
+                    @else
+                        <div class="placeholder">No Image</div>
+                    @endif
+
+                    <p class="sku">{{ $product->item_code }}</p>
+                    <div class="title">{{ $product->item_name }}</div>
+
+                    @if($showPrice && $product->custom_price)
+                        <p class="price">Rs. {{ number_format($product->custom_price) }}</p>
+                    @endif
+                </td>
+
+                {{-- Break the row every 3 items --}}
+                @if(($index + 1) % 3 == 0 && !$loop->last)
+                    </tr><tr>
+                @endif
+            @endforeach
+            </tr>
+        </table>
+    </main>
 
 </body>
 </html>
